@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "A worker in the construction site.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the employee" },
+        "photo": { "type": "string", "description": "URL to the employee's photo" },
+        "role": { "type": "string", "description": "Job role of the employee" },
+        "competencies": { 
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "List of competencies/certifications the employee holds"
+        }
+      },
+      "required": ["name", "photo", "role", "competencies"]
+    },
+    "Tool": {
+      "title": "Tool",
+      "description": "A tool or equipment available in the inventory.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "requiredCompetencies": { 
+          "type": "array", 
+          "items": { "type": "string" }
+        },
+        "totalQuantity": { "type": "number" },
+        "availableQuantity": { "type": "number" }
+      },
+      "required": ["name", "description", "requiredCompetencies", "totalQuantity", "availableQuantity"]
+    },
+    "Movement": {
+      "title": "Movement",
+      "description": "A record of a tool being checked out or checked in.",
+      "type": "object",
+      "properties": {
+        "toolId": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "type": { "type": "string", "enum": ["checkout", "checkin"] },
+        "date": { "type": "string", "format": "date-time" },
+        "quantity": { "type": "number" },
+        "previousQuantity": { "type": "number" },
+        "newQuantity": { "type": "number" }
+      },
+      "required": ["toolId", "employeeId", "type", "date", "quantity"]
+    }
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Collection of all employees."
+    },
+    "/tools/{toolId}": {
+      "schema": { "$ref": "#/entities/Tool" },
+      "description": "Collection of all tools."
+    },
+    "/movements/{movementId}": {
+      "schema": { "$ref": "#/entities/Movement" },
+      "description": "Collection of all tool movements."
+    }
+  }
+}

@@ -1,0 +1,183 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: employees
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required)
+    //   - photo: string (required)
+    //   - role: string (required)
+    //   - competencies: list of strings (required)
+    //
+    // Collection: tools
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required)
+    //   - description: string (required)
+    //   - requiredCompetencies: list of strings (required)
+    //   - totalQuantity: number (required)
+    //   - availableQuantity: number (required)
+    //
+    // Collection: movements
+    // Document ID: auto-generated
+    // Fields:
+    //   - toolId: string (required)
+    //   - employeeId: string (required)
+    //   - type: string (required, 'checkout' or 'checkin')
+    //   - date: string (required, ISO 8601 date string)
+    //   - quantity: number (required, positive)
+    //   - previousQuantity: number (optional)
+    //   - newQuantity: number (optional)
+    //
+    // Collection: adminRequests
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required)
+    //   - email: string (required)
+    //   - status: string (required, 'pending', 'approved', 'rejected')
+    //   - createdAt: string (required, ISO 8601 date string)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "victorhugocosta02@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    function hasRequiredFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidList(field, maxSize) {
+      return request.resource.data[field] is list &&
+        request.resource.data[field].size() <= maxSize;
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser() {
+      return hasOnlyAllowedFields(['email', 'role']) &&
+             hasRequiredFields(['email', 'role']) &&
+             isValidString('email', 1, 200) &&
+             (request.resource.data.role == 'admin' || request.resource.data.role == 'user');
+    }
+
+    function isValidAdminRequest() {
+      return hasOnlyAllowedFields(['userId', 'email', 'status', 'createdAt']) &&
+             hasRequiredFields(['userId', 'email', 'status', 'createdAt']) &&
+             isValidString('userId', 1, 100) &&
+             isValidString('email', 1, 200) &&
+             (request.resource.data.status == 'pending' || request.resource.data.status == 'approved' || request.resource.data.status == 'rejected') &&
+             isValidDateString(request.resource.data.createdAt);
+    }
+
+    function isValidEmployee() {
+      return hasOnlyAllowedFields(['name', 'photo', 'role', 'competencies']) &&
+             hasRequiredFields(['name', 'photo', 'role', 'competencies']) &&
+             isValidString('name', 1, 100) &&
+             isValidString('photo', 0, 500) &&
+             isValidString('role', 1, 100) &&
+             isValidList('competencies', 20);
+    }
+
+    function isValidTool() {
+      return hasOnlyAllowedFields(['name', 'description', 'requiredCompetencies', 'totalQuantity', 'availableQuantity']) &&
+             hasRequiredFields(['name', 'description', 'requiredCompetencies', 'totalQuantity', 'availableQuantity']) &&
+             isValidString('name', 1, 100) &&
+             isValidString('description', 0, 500) &&
+             isValidList('requiredCompetencies', 20) &&
+             request.resource.data.totalQuantity is number &&
+             request.resource.data.totalQuantity >= 0 &&
+             request.resource.data.availableQuantity is number &&
+             request.resource.data.availableQuantity >= 0 &&
+             request.resource.data.availableQuantity <= request.resource.data.totalQuantity;
+    }
+
+    function isValidMovement() {
+      return hasOnlyAllowedFields(['toolId', 'employeeId', 'type', 'date', 'quantity', 'previousQuantity', 'newQuantity']) &&
+             hasRequiredFields(['toolId', 'employeeId', 'type', 'date', 'quantity']) &&
+             isValidString('toolId', 1, 100) &&
+             isValidString('employeeId', 1, 100) &&
+             (request.resource.data.type == 'checkout' || request.resource.data.type == 'checkin') &&
+             isValidDateString(request.resource.data.date) &&
+             request.resource.data.quantity is number &&
+             request.resource.data.quantity > 0 &&
+             (!('previousQuantity' in request.resource.data) || request.resource.data.previousQuantity is number) &&
+             (!('newQuantity' in request.resource.data) || request.resource.data.newQuantity is number);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // Only allow user to create themselves as 'user', unless they are the default admin
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser() &&
+                    (request.resource.data.role == 'user' || isAdmin());
+      // Only admins can change roles. Users can update their own profile but not change their role.
+      allow update: if isAuthenticated() && isValidUser() &&
+                    ((request.auth.uid == userId && request.resource.data.role == resource.data.role) || isAdmin());
+      allow delete: if false;
+    }
+
+    match /adminRequests/{requestId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId && isValidAdminRequest() && request.resource.data.status == 'pending';
+      allow update: if isAdmin() && isValidAdminRequest();
+      allow delete: if isAdmin();
+    }
+
+    match /employees/{employeeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidEmployee();
+      allow update: if isAdmin() && isValidEmployee();
+      allow delete: if isAdmin();
+    }
+
+    match /tools/{toolId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidTool();
+      allow update: if isAdmin() && isValidTool() || 
+                    (isAuthenticated() && isValidTool() && 
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableQuantity']));
+      allow delete: if isAdmin() && resource.data.availableQuantity == resource.data.totalQuantity;
+    }
+
+    match /movements/{movementId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidMovement();
+      allow update: if isAdmin() && isValidMovement();
+      allow delete: if isAdmin();
+    }
+  }
+}
