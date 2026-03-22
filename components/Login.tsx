@@ -26,8 +26,24 @@ export default function Login() {
         setSuccessMsg('Enviamos as instruções de recuperação para o seu e-mail. Por favor, verifique sua caixa de entrada e a pasta de spam.');
         setIsForgotPassword(false);
       } else if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
+    // Faz login com Firebase
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+    // pega o token do usuário
+    const token = await userCredential.user.getIdToken();
+    // Esse token identifica o usuário logado
+    // Ele NÃO deve ficar acessível no frontend diretamente,
+    // por isso enviamos para o backend e salvamos em cookie httpOnly
+
+    // envia pro backend salvar em cookie seguro
+    await fetch("/api/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token }),
+  });
+} else {
         await createUserWithEmailAndPassword(auth, email, password);
       }
     } catch (err: any) {
