@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { adminAuth } from "@/lib/firebase-admin"
+// import { adminAuth } from "@/lib/firebase-admin"
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,11 +11,11 @@ export async function GET(req: NextRequest) {
     }
 
     // 🔥 valida o token no Firebase
-    const decoded = await adminAuth.verifyIdToken(token)
+    // const decoded = await adminAuth.verifyIdToken(token)
 
     return NextResponse.json({
-      message: "Acesso liberado",
-      userId: decoded.uid,
+      ok: true,
+      message: "Rota protegida (sem admin)",
     })
   } catch (error) {
     return NextResponse.json({ error: "Token inválido" }, { status: 401 })
