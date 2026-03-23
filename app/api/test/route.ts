@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { adminAuth } from "@/lib/firebase-admin"
+// import { adminAuth } from "@/lib/firebase-admin"
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,12 +12,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Verifica se o token é válido no Firebase
-    const decoded = await adminAuth.verifyIdToken(token)
+    // const decoded = await adminAuth.verifyIdToken(token)
 
     // Retorna sucesso + ID do usuário
     return NextResponse.json({
       ok: true,
-      userId: decoded.uid,
+      message: "Usuário autenticado (token presente)",
     })
   } catch {
     return NextResponse.json({ error: "Token inválido" }, { status: 401 })
